@@ -6,7 +6,7 @@ import numpy as np
 
 from ...core.acquisition import Acquisition
 from ...core.interfaces import IDifferentiable, IModel
-from ...core.loop import FixedIntervalUpdater, OuterLoop, SequentialPointCalculator
+from ...core.loop import FixedIntervalUpdater, OuterLoop, CandidatePointCalculator, SequentialPointCalculator
 from ...core.loop.loop_state import create_loop_state, LoopState
 from ...core.optimization import AcquisitionOptimizerBase
 from ...core.optimization import GradientAcquisitionOptimizer
@@ -18,7 +18,8 @@ from ..local_penalization_calculator import LocalPenalizationPointCalculator
 
 class BayesianOptimizationLoop(OuterLoop):
     def __init__(self, space: ParameterSpace, model: IModel, acquisition: Acquisition = None, update_interval: int = 1,
-                 batch_size: int = 1, acquisition_optimizer: AcquisitionOptimizerBase = None):
+                 batch_size: int = 1, acquisition_optimizer: AcquisitionOptimizerBase = None,
+                 candidate_point_calculator: CandidatePointCalculator = None):
 
         """
         Emukit class that implement a loop for building modular Bayesian optimization
@@ -47,12 +48,13 @@ class BayesianOptimizationLoop(OuterLoop):
         if batch_size == 1:
             candidate_point_calculator = SequentialPointCalculator(acquisition, acquisition_optimizer)
         else:
-            if not isinstance(model, IDifferentiable):
-                raise ValueError('Model must implement ' + str(IDifferentiable) +
-                                 ' for use with Local Penalization batch method.')
-            log_acquisition = LogAcquisition(acquisition)
-            candidate_point_calculator = LocalPenalizationPointCalculator(log_acquisition, acquisition_optimizer, model,
-                                                                          space, batch_size)
+            if candidate_point_calculator is None:
+                if not isinstance(model, IDifferentiable):
+                    raise ValueError('Model must implement ' + str(IDifferentiable) +
+                                     ' for use with Local Penalization batch method.')
+                log_acquisition = LogAcquisition(acquisition)
+                candidate_point_calculator = LocalPenalizationPointCalculator(log_acquisition, acquisition_optimizer, model,
+                                                                              space, batch_size)
 
         loop_state = create_loop_state(model.X, model.Y)
 
