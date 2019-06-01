@@ -20,9 +20,8 @@ class MinValueEntropySearch(Acquisition):
 
         :param model: GP model to compute the distribution of the minimum dubbed pmin.
         :param space: Domain space which we need for the sampling of the representer points
-        :param sampler: mcmc sampler for representer points
-        :param num_min_samples: integer determining how many in samples of objective minima to draw
-
+        :param num_min_samples: number of objective minima in sum approximation
+        :param gridsize: number of samples to draw from the model in Gumbel sampling
         """
         super().__init__()
 
@@ -51,7 +50,7 @@ class MinValueEntropySearch(Acquisition):
         Apply Gumbel sampling
         """
         N = np.shape(self.model.X)[0]
-        Xrand = RandomDesign(self._space).get_samples(self.gridsize)
+        Xrand = LatinDesign(self._space).get_samples(self.gridsize)
         fmean, fvar = self.model.predict(np.vstack((self.model.X, Xrand)))
         idx = np.argmin(fmean[:N])
         right = fmean[idx].flatten()  # + 2*np.sqrt(fvar[idx]).flatten()
@@ -142,7 +141,7 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
         """
         model_X_target = self.model.X[model.X[:, 1] == self.target_information_source_index]
         N = np.shape(model_X_target)[0]
-        Xrand = RandomDesign(self._space_without_info_source).get_samples(self.gridsize)
+        Xrand = LatinDesign(self._space_without_info_source).get_samples(self.gridsize)
         Xrand = np.array([[xi, self.target_information_source_index] for xi in Xrand])
         fmean, fvar = self.model.predict(np.vstack((model_X_target, Xrand)))
         idx = np.argmin(fmean[:N])
