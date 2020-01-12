@@ -72,6 +72,21 @@ class MinValueEntropySearch(Acquisition):
         # obtain samples from y*
         mins = np.log(-np.log(1 - np.random.rand(self.num_min_samples).astype(np.float32))) * beta + alpha
         return mins
+    #
+    # def sample_minima_ts(self):
+    #     """
+    #     Apply on sampling to sample function minima
+    #     TODO: explain
+    #     """
+    #     model_X_target = self.model.X[self.model.X[:, -1] == self.target_information_source_index]
+    #     N = np.shape(model_X_target)[0]
+    #     Xrand = LatinDesign(self._space_without_info_source).get_samples(self.gridsize)
+    #     Xrand = np.c_[Xrand, [self.target_information_source_index]*Xrand.shape[0]]
+    #     y_sample_high = self.model.posterior_samples_f(Xrand, size=self.num_min_samples)
+    #     mins = np.min(y_sample_high, axis=0)[0, :]
+    #     argmins = Xrand[np.argmin(y_sample_high, axis=0)[0, :]]
+    #
+    #     return mins
 
     @property
     def has_gradients(self) -> bool:
@@ -79,7 +94,7 @@ class MinValueEntropySearch(Acquisition):
         return False
 
 
-class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
+class MultiFidelityMinValueEntropySearch(Acquisition):
     """
     Min-Value Entropy search acquisition for multi-fidelity (multi-information source) problems where the objective function is the output of one
     of the information sources. The other information sources provide auxiliary information about the objective function
@@ -87,7 +102,7 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
 
     def __init__(self, model: IModel, space: ParameterSpace,
                  target_information_source_index: int = None,
-                 num_min_samples: int = 100, gridsize=10000) -> None:
+                 num_min_samples: int = 100, gridsize=10000):
 
         """
 
@@ -97,6 +112,7 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
         :param num_min_samples: integer determining how many in samples of objective minima to draw
 
         """
+        super().__init__()
 
         self.model = model
         self.gridsize = gridsize
@@ -117,7 +133,7 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
         parameters_without_info_source = space.parameters.copy()  # optimization space
         parameters_without_info_source.remove(info_source_parameter)
         self._space_without_info_source = ParameterSpace(parameters_without_info_source)
-
+        # print(self.__dict__)
         self.mins = self.sample_minima()
 
     def evaluate(self, x):
@@ -127,22 +143,44 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
         """
         fmean, fvar = self.model.predict(x)
         norm = scipy.stats.norm(0.0, 1.0)
-        #         self.mins = self.sample_minima()
-        #         gamma = (np.expand_dims(self.mins, axis=0) - 2*fmean - 3*fvar) / np.sqrt(fvar)
-        gamma = (np.expand_dims(self.mins, axis=0) - fmean) / np.sqrt(fvar)
 
-        return np.sum(- gamma * norm.pdf(gamma) / (2. * (1 - norm.cdf(gamma))) - np.log(1 - norm.cdf(gamma)),
+        # f_var_add = [fvar[i]*(x[i, -1] - 1) for i in range(len(fvar))]
+        # print ("f_var_add", f_var_add)
+        # self.mins = self.sample_minima_ts()
+        # gamma = (np.expand_dims(self.mins, axis=0) - fmean - 3*fvar) / np.sqrt(fvar)
+        # print ("x:", x)
+        # print ("fmean:", fmean)
+        # print("fvar:", fvar)
+        # print (x[:,-1].shape, self.mins.shape, fmean.shape)
+
+        gamma = (np.expand_dims(self.mins, axis=0) - fmean)/ np.sqrt(fvar)
+        # print ('x', x)
+        # print ('fvar', fvar)
+        # print ('fmean', fmean)
+        # print (gamma.shape)
+
+        # print('gamma: ', gamma)
+        #
+        print ('gamma.shape', gamma.shape)
+        print ('x.shape', x.shape)
+        print ('self.mins', self.mins)
+
+        value = np.sum(- gamma * norm.pdf(gamma)/ (2. * (1 - norm.cdf(gamma))) - np.log(1 - norm.cdf(gamma)),
                       axis=1, keepdims=True) / self.num_min_samples
+        # value[x[:,-1] == 1] = value[x[:,-1] == 1]*100
+        return value
+        # return np.sum(- gamma * norm.pdf(gamma)/ (2. * (1 - norm.cdf(gamma))) - np.log(1 - norm.cdf(gamma)),
+        #               axis=1, keepdims=True) / self.num_min_samples
 
     def sample_minima(self):
         """
         Apply Gumbel sampling
         TODO: explain
         """
-        model_X_target = self.model.X[model.X[:, 1] == self.target_information_source_index]
+        model_X_target = self.model.X[self.model.X[:, -1] == self.target_information_source_index]
         N = np.shape(model_X_target)[0]
         Xrand = LatinDesign(self._space_without_info_source).get_samples(self.gridsize)
-        Xrand = np.array([[xi, self.target_information_source_index] for xi in Xrand])
+        Xrand = np.c_[Xrand, [self.target_information_source_index]*Xrand.shape[0]]
         fmean, fvar = self.model.predict(np.vstack((model_X_target, Xrand)))
         idx = np.argmin(fmean[:N])
         right = fmean[idx].flatten()  # + 2*np.sqrt(fvar[idx]).flatten()
@@ -164,12 +202,45 @@ class MultiFidelityMinValueEntropySearch(MinValueEntropySearch):
         # obtain samples from y*
         mins = np.log(-np.log(1 - np.random.rand(self.num_min_samples).astype(np.float32))) * beta + alpha
         return mins
+    #
+    # def sample_minima_ts(self):
+    #     """
+    #     Apply on sampling to sample function minima
+    #     TODO: explain
+    #     """
+    #     model_X_target = self.model.X[self.model.X[:, -1] == self.target_information_source_index]
+    #     N = np.shape(model_X_target)[0]
+    #     Xrand = LatinDesign(self._space_without_info_source).get_samples(self.gridsize)
+    #     Xrand = np.c_[Xrand, [self.target_information_source_index]*Xrand.shape[0]]
+    #     print (Xrand)
+    #     y_sample_high = self.model.gpy_model.posterior_samples_f(Xrand, size=self.num_min_samples)
+    #     mins = np.min(y_sample_high, axis=0)[0, :]
+    #     argmins = Xrand[np.argmin(y_sample_high, axis=0)[0, :]]
+    #
+    #     return mins
 
     @property
     def has_gradients(self) -> bool:
         """Returns that this acquisition has gradients"""
         return False
 
+
+# Define cost of different fidelities as acquisition function
+class Cost(Acquisition):
+    def __init__(self, costs):
+        self.costs = costs
+
+    def evaluate(self, x):
+        fidelity_index = x[:, -1].astype(int)
+        x_cost = np.array([self.costs[i] for i in fidelity_index])
+        return x_cost[:, None]
+
+    @property
+    def has_gradients(self):
+        return True
+
+    def evaluate_with_gradients(self, x):
+        return self.evalute(x), np.zeros(x.shape)
 
 def _find_source_parameter(space):
     # Find information source parameter in parameter space
@@ -184,3 +255,4 @@ def _find_source_parameter(space):
         raise ValueError('No information source parameter found in the parameter space')
 
     return info_source_parameter, source_idx
+
